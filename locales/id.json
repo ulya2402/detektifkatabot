@@ -48,5 +48,13 @@
   "end_command_not_host": "Waduh, cuma Host (<b>{host_name}</b>) yang bisa mengakhiri permainan ini.",
   "game_ended_by_host": "Host telah mengakhiri permainan lebih awal. Inilah hasil akhirnya:",
   "warning_not_participant": "Hei! Kayaknya kamu belum gabung di permainan ini deh. Lain kali, jangan lupa tekan tombol 'IKUT MAIN' di lobi ya biar bisa ikutan nebak.",
-  "game_not_found": "Hmm, sepertinya tidak ada permainan yang sedang berlangsung di grup ini."
+  "game_not_found": "Hmm, sepertinya tidak ada permainan yang sedang berlangsung di grup ini.",
+  "help_main_title": "❓ <b>Pusat Bantuan</b> ❓\n\nPilih salah satu tombol di bawah ini untuk melihat panduan lebih lanjut.",
+  "help_button_how_to_play": "🎮 Cara Bermain",
+  "help_button_commands": "⌨️ Daftar Perintah",
+  "help_button_scoring": "⭐ Sistem Skor",
+  "help_button_back": "⬅️ Kembali",
+  "help_text_how_to_play": "<b>🎮 Cara Bermain Detektif Kata 🎮</b>\n\n1.  <b>Mulai Lobi</b>: Di grup, salah satu pemain (Host) mengetik <code>/startgame [jumlah ronde]</code> untuk membuka lobi permainan. Contoh: <code>/startgame 5</code> untuk 5 ronde.\n\n2.  <b>Bergabung</b>: Pemain lain menekan tombol 'IKUT MAIN' untuk bergabung.\n\n3.  <b>Mulai Permainan</b>: Host mengetik <code>/play</code> untuk memulai.\n\n4.  <b>Pemberi Petunjuk</b>: Setiap ronde, satu pemain akan dipilih secara acak menjadi Pemberi Petunjuk. Bot akan mengiriminya kata rahasia via PM.\n\n5.  <b>Memberi Petunjuk</b>: Pemberi Petunjuk harus memberikan satu kata petunjuk (tidak boleh sama dengan kata rahasia) di PM bot.\n\n6.  <b>Menebak</b>: Bot akan mengumumkan petunjuk di grup. Pemain lain harus menebak dengan cara me-reply pesan petunjuk tersebut. Hanya penebak tercepat dan benar yang dapat poin!",
+  "help_text_commands": "<b>⌨️ Daftar Perintah ⌨️</b>\n\n<b>Perintah Grup:</b>\n- <code>/startgame [jumlah]</code>: Membuka lobi permainan dengan jumlah ronde tertentu (default: 10).\n- <code>/play</code>: Memulai permainan (hanya Host).\n- <code>/end</code>: Menghentikan permainan yang sedang berjalan (hanya Host).\n- <code>/leaderboard</code> atau <code>/topglobal</code>: Menampilkan papan peringkat pemain global.\n\n<b>Perintah Pribadi (PM ke Bot):</b>\n- <code>/startalone</code>: Memulai mode permainan solo untuk latihan.",
+  "help_text_scoring": "<b>⭐ Sistem Skor ⭐</b>\n\nSkor hanya didapatkan oleh pemain yang berhasil menebak kata rahasia dengan benar. Pemberi Petunjuk tidak mendapatkan skor.\n\nPerolehan skor ditentukan oleh kecepatan menebak:\n- <b>0-15 detik</b>: 20 Poin\n- <b>16-30 detik</b>: 15 Poin\n- <b>31-45 detik</b>: 10 Poin\n- <b>46-60 detik</b>: 5 Poin\n\nSemua poin yang kamu kumpulkan selama permainan akan ditambahkan ke skor globalmu di akhir permainan."
 }

@@ -32,6 +32,7 @@ type GameState struct {
 	ClueGiverReminderTimer   *time.Timer
 	GuessingTimeWarningTimer *time.Timer
 	WrongGuesses             []string // TANDA: Field yang hilang ditambahkan di sini
+	GuessingStartTime        time.Time
 }
 
 type SoloGameState struct {
@@ -41,7 +42,7 @@ type SoloGameState struct {
 	HintsGiven  int
 }
 
-func NewGame(chatID int64, host *db.Player) *GameState {
+func NewGame(chatID int64, host *db.Player, totalRounds int) *GameState {
 	return &GameState{
 		ChatID:           chatID,
 		Status:           StatusLobby,
@@ -51,8 +52,8 @@ func NewGame(chatID int64, host *db.Player) *GameState {
 		TurnOrder:        make([]*db.Player, 0),
 		CurrentTurnIndex: 0,
 		Round:            0,
-		TotalRounds:      10,
+		TotalRounds:      totalRounds, // TANDA: Menggunakan nilai dari parameter
 		IsActive:         true,
-		WrongGuesses:     make([]string, 0), // TANDA: Diinisialisasi di sini
+		WrongGuesses:     make([]string, 0),
 	}
 }

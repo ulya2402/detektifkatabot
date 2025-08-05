@@ -1,0 +1,7 @@
+.env
+
+detektif-kata-bot
+*.exe
+
+.DS_Store
+Thumbs.db

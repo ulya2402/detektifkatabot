@@ -2,6 +2,7 @@ package bot
 
 import (
 	"log"
+	"sync"
 
 	"detektif-kata-bot/internal/config"
 	"detektif-kata-bot/internal/db"
@@ -19,7 +20,8 @@ type Bot struct {
 	db          *db.Client
 	gameStates  map[int64]*game.GameState
 	soloGameStates map[int64]*game.SoloGameState
-	botUsername string // TANDA: Baris ini ditambahkan
+	botUsername string 
+	mu             sync.RWMutex
 }
 
 func New(cfg *config.Config, localizer *i18n.Localizer, dbClient *db.Client) *Bot {
@@ -48,6 +50,6 @@ func (b *Bot) Start() {
 	updates := b.api.GetUpdatesChan(u)
 
 	for update := range updates {
-		b.handleUpdate(update)
+		go b.handleUpdate(update)
 	}
 }

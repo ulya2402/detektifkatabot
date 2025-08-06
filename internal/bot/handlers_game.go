@@ -55,7 +55,9 @@ func (b *Bot) handleClueSubmission(message *tgbotapi.Message, player *db.Player,
 // TANDA: Fungsi ini diperbarui untuk menerapkan skor berbasis waktu
 func (b *Bot) handleGroupMessage(message *tgbotapi.Message, player *db.Player) {
 	chatID := message.Chat.ID
+	b.mu.RLock()
 	state, ok := b.gameStates[chatID]
+	b.mu.RUnlock()
 	if !ok || !state.IsActive || state.Status != game.StatusWaitingForGuesses {
 		return
 	}
@@ -139,7 +141,10 @@ func (b *Bot) handleGroupMessage(message *tgbotapi.Message, player *db.Player) {
 
 // TANDA: Fungsi ini dirombak untuk menambahkan semua skor sesi ke skor global
 func (b *Bot) endGame(chatID int64, reason string) {
+	b.mu.RLock()
 	state, ok := b.gameStates[chatID]
+	b.mu.RUnlock()
+
 	if !ok {
 		return
 	}
@@ -202,7 +207,9 @@ func (b *Bot) endGame(chatID int64, reason string) {
 	}
 
 	b.sendMessage(chatID, finalMsg, true)
+	b.mu.Lock()
 	delete(b.gameStates, chatID)
+	b.mu.Unlock()
 }
 
 
@@ -235,13 +242,18 @@ func (b *Bot) handleSoloGuess(message *tgbotapi.Message, player *db.Player, stat
 			responseText := b.localizer.Get(lang, "solo_no_more_hints")
 			responseText = strings.Replace(responseText, "{word}", strings.ToUpper(state.CurrentWord.Word), 1)
 			b.sendMessage(message.Chat.ID, responseText, true)
+
+			b.mu.Lock()
 			delete(b.soloGameStates, player.TelegramUserID)
+			b.mu.Unlock()
 		}
 	}
 }
 
 func (b *Bot) startRound(chatID int64) {
+	b.mu.RLock()
 	state, ok := b.gameStates[chatID]
+	b.mu.RUnlock()
 	if !ok {
 		return
 	}
@@ -280,7 +292,10 @@ func (b *Bot) startRound(chatID int64) {
 }
 
 func (b *Bot) handleEndOfRound(chatID int64) {
+	b.mu.RLock()
 	state, ok := b.gameStates[chatID]
+	b.mu.RUnlock()
+
 	if !ok {
 		return
 	}
@@ -313,7 +328,9 @@ func (b *Bot) handleEndOfRound(chatID int64) {
 }
 
 func (b *Bot) handleTimesUp(chatID int64) {
+	b.mu.RLock()
 	state, ok := b.gameStates[chatID]
+	b.mu.RUnlock()
 	if !ok || !state.IsActive || state.Status != game.StatusWaitingForGuesses {
 		return
 	}
@@ -329,7 +346,9 @@ func (b *Bot) handleTimesUp(chatID int64) {
 }
 
 func (b *Bot) handleGuessingTimeWarning(chatID int64) {
+	b.mu.RLock()
 	state, ok := b.gameStates[chatID]
+	b.mu.RUnlock()
 	if !ok || !state.IsActive || state.Status != game.StatusWaitingForGuesses {
 		return
 	}
@@ -339,7 +358,9 @@ func (b *Bot) handleGuessingTimeWarning(chatID int64) {
 }
 
 func (b *Bot) handleClueGiverReminder(chatID int64, playerID int64) {
+	b.mu.RLock()
 	state, ok := b.gameStates[chatID]
+	b.mu.RUnlock()
 	if !ok || !state.IsActive || state.Status != game.StatusWaitingForClue {
 		return
 	}
@@ -353,12 +374,16 @@ func (b *Bot) handleClueGiverReminder(chatID int64, playerID int64) {
 func (b *Bot) startSoloGame(chatID int64, player *db.Player, lang string) {
 	rand.Seed(time.Now().UnixNano())
 	wordData := game.SoloWordList[rand.Intn(len(game.SoloWordList))]
+	
+	b.mu.Lock()
 	b.soloGameStates[player.TelegramUserID] = &game.SoloGameState{
 		UserID:      player.TelegramUserID,
 		IsActive:    true,
 		CurrentWord: wordData,
 		HintsGiven:  1,
 	}
+	b.mu.Unlock()
+	
 	b.sendMessage(chatID, b.localizer.Get(lang, "solo_game_started"), false)
 	time.Sleep(1 * time.Second)
 	firstHintText := b.localizer.Get(lang, "solo_first_hint")
@@ -367,7 +392,9 @@ func (b *Bot) startSoloGame(chatID int64, player *db.Player, lang string) {
 }
 
 func (b *Bot) startGame(chatID int64) {
+	b.mu.RLock()
 	state := b.gameStates[chatID]
+	b.mu.RUnlock()
 	lang := "id"
 
 	msg := tgbotapi.NewEditMessageReplyMarkup(chatID, state.LobbyMessageID, tgbotapi.InlineKeyboardMarkup{InlineKeyboard: [][]tgbotapi.InlineKeyboardButton{}})

@@ -29,6 +29,8 @@ func (b *Bot) handleCommand(message *tgbotapi.Message, player *db.Player) {
 		b.handleStartAloneCommand(message, player)
 	case "leaderboard", "topglobal":
 		b.handleLeaderboardCommand(message)
+	case "broadcast", "broadcastgroup": // TANDA: Perintah baru ditambahkan
+		b.handleAdminCommand(message)
 	default:
 	}
 }
@@ -48,12 +50,15 @@ func (b *Bot) handleStartGameCommand(message *tgbotapi.Message, player *db.Playe
 		b.sendMessage(chatID, b.localizer.Get(lang, "group_command_only"), false)
 		return
 	}
-	if state, ok := b.gameStates[chatID]; ok && state.IsActive {
+	
+	b.mu.RLock()
+	state, ok := b.gameStates[chatID]
+	b.mu.RUnlock()
+	if ok && state.IsActive {
 		b.sendMessage(chatID, b.localizer.Get(lang, "game_already_running"), false)
 		return
 	}
 
-	// TANDA: Logika untuk menentukan jumlah ronde dimulai di sini
 	args := message.CommandArguments()
 	totalRounds := 10 // Default
 	minRounds := 3
@@ -71,8 +76,10 @@ func (b *Bot) handleStartGameCommand(message *tgbotapi.Message, player *db.Playe
 	}
 	// TANDA: Logika untuk menentukan jumlah ronde berakhir di sini
 
+	b.mu.Lock()
 	b.gameStates[chatID] = game.NewGame(chatID, player, totalRounds) // TANDA: totalRounds dimasukkan saat membuat game baru
 	b.gameStates[chatID].Players[player.TelegramUserID] = player
+	b.mu.Unlock()
 
 	lobbyMsg, err := b.updateLobbyMessage(chatID)
 	if err != nil {
@@ -85,7 +92,10 @@ func (b *Bot) handleStartGameCommand(message *tgbotapi.Message, player *db.Playe
 func (b *Bot) handlePlayCommand(message *tgbotapi.Message, player *db.Player) {
 	chatID := message.Chat.ID
 	lang := b.getUserLang(message.From)
+	
+	b.mu.RLock()
 	state, ok := b.gameStates[chatID]
+	b.mu.RUnlock()
 
 	if !ok || !state.IsActive || state.Status != game.StatusLobby {
 		return
@@ -109,7 +119,10 @@ func (b *Bot) handlePlayCommand(message *tgbotapi.Message, player *db.Player) {
 func (b *Bot) handleEndCommand(message *tgbotapi.Message, player *db.Player) {
 	chatID := message.Chat.ID
 	lang := b.getUserLang(message.From)
+	
+	b.mu.RLock()
 	state, ok := b.gameStates[chatID]
+	b.mu.RUnlock()
 
 	if !ok || !state.IsActive {
 		b.sendMessage(chatID, b.localizer.Get(lang, "game_not_found"), false)
@@ -134,7 +147,11 @@ func (b *Bot) handleStartAloneCommand(message *tgbotapi.Message, player *db.Play
 		b.sendMessage(chatID, b.localizer.Get(lang, "private_chat_only"), false)
 		return
 	}
-	if state, ok := b.soloGameStates[player.TelegramUserID]; ok && state.IsActive {
+
+	b.mu.RLock()
+	state, ok := b.soloGameStates[player.TelegramUserID]
+	b.mu.RUnlock()
+	if ok && state.IsActive {
 		b.sendMessage(chatID, b.localizer.Get(lang, "solo_game_already_running"), false)
 		return
 	}

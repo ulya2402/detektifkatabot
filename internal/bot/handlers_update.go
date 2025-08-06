@@ -6,6 +6,7 @@ import (
 
 	"detektif-kata-bot/internal/config"
 	"detektif-kata-bot/internal/db"
+	"detektif-kata-bot/internal/game"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -28,6 +29,20 @@ func (b *Bot) handleUpdate(update tgbotapi.Update) {
 		chat = update.CallbackQuery.Message.Chat
 		message = update.CallbackQuery.Message
 	}
+
+	go func() {
+		// TANDA: Logika perbaikan dimulai di sini
+		chatTypeToSave := chat.Type
+		if chat.IsSuperGroup() {
+			chatTypeToSave = "group"
+		}
+		// TANDA: Logika perbaikan berakhir di sini
+
+		err := b.db.GetOrCreateChat(chat.ID, chatTypeToSave) // TANDA: Menggunakan variabel yang sudah dinormalisasi
+		if err != nil {
+			log.Printf("Failed to save chat info for chat ID %d: %v", chat.ID, err)
+		}
+	}()
 
 	isMember, err := b.checkUserIsMember(from)
 	if err != nil {
@@ -69,14 +84,24 @@ func (b *Bot) handleUpdate(update tgbotapi.Update) {
 
 func (b *Bot) handlePrivateMessage(message *tgbotapi.Message, player *db.Player) {
 	lang := b.getUserLang(message.From)
-	for chatID, state := range b.gameStates {
-		if state.IsActive && state.Status == "waiting_for_clue" && state.ClueGiver.TelegramUserID == player.TelegramUserID {
+
+	b.mu.RLock()
+	gameStatesCopy := make(map[int64]*game.GameState)
+	for k, v := range b.gameStates {
+		gameStatesCopy[k] = v
+	}
+	soloState, soloOk := b.soloGameStates[player.TelegramUserID]
+	b.mu.RUnlock()
+
+	for chatID, state := range gameStatesCopy {
+		if state.IsActive && state.Status == "waiting_for_clue" && state.ClueGiver != nil && state.ClueGiver.TelegramUserID == player.TelegramUserID {
 			b.handleClueSubmission(message, player, state, chatID, lang)
 			return
 		}
 	}
-	if state, ok := b.soloGameStates[player.TelegramUserID]; ok && state.IsActive {
-		b.handleSoloGuess(message, player, state, lang)
+
+	if soloOk && soloState.IsActive {
+		b.handleSoloGuess(message, player, soloState, lang)
 		return
 	}
 }

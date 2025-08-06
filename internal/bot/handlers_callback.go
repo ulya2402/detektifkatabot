@@ -22,6 +22,9 @@ func (b *Bot) handleCallbackQuery(query *tgbotapi.CallbackQuery) {
 	data := query.Data
 
 	if strings.HasPrefix(query.Data, "join_game") {
+		b.mu.Lock()
+		defer b.mu.Unlock()
+
 		state, ok := b.gameStates[chatID]
 		if !ok || !state.IsActive || state.Status != game.StatusLobby {
 			b.answerCallback(query.ID, "Lobi sudah ditutup.", true)
@@ -35,7 +38,9 @@ func (b *Bot) handleCallbackQuery(query *tgbotapi.CallbackQuery) {
 
 		state.Players[player.TelegramUserID] = player
 		b.answerCallback(query.ID, b.localizer.Get(lang, "callback_join_success"), false)
-		b.updateLobbyMessage(chatID)
+
+		go b.updateLobbyMessage(chatID)
+		return
 	}
 	
 	if strings.HasPrefix(data, "help_") {
@@ -78,7 +83,10 @@ func (b *Bot) createHelpBackButton(lang string) tgbotapi.InlineKeyboardMarkup {
 }
 
 func (b *Bot) updateLobbyMessage(chatID int64) (tgbotapi.Message, error) {
+	b.mu.RLock()
 	state := b.gameStates[chatID]
+	b.mu.RUnlock()
+	
 	lang := "id"
 
 	var playerList strings.Builder

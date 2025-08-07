@@ -29,7 +29,11 @@ func (b *Bot) handleCommand(message *tgbotapi.Message, player *db.Player) {
 		b.handleStartAloneCommand(message, player)
 	case "leaderboard", "topglobal":
 		b.handleLeaderboardCommand(message)
-	case "broadcast", "broadcastgroup": // TANDA: Perintah baru ditambahkan
+	case "profile":
+		b.handleProfileCommand(message, player)
+	case "toko", "market":
+		b.handleTokoCommand(message, player)
+	case "broadcast", "broadcastgroup": 
 		b.handleAdminCommand(message)
 	default:
 	}
@@ -186,9 +190,18 @@ func (b *Bot) handleLeaderboardCommand(message *tgbotapi.Message) {
 			rank = fmt.Sprintf("%d.", i+1)
 		}
 
+		// TANDA: Logika untuk mengambil dan menampilkan lencana ditambahkan di sini
+		playerBadges, _ := b.db.GetPlayerBadges(p.TelegramUserID)
+		badgeDisplay := ""
+		if len(playerBadges) > 0 {
+			badgeDisplay = playerBadges[0].Emoji + " "
+		}
+		playerNameDisplay := badgeDisplay + html.EscapeString(p.FirstName)
+		// TANDA: Akhir dari blok yang ditambahkan
+
 		entry := b.localizer.Get(lang, "leaderboard_entry")
 		entry = strings.Replace(entry, "{rank_emoji}", rank, 1)
-		entry = strings.Replace(entry, "{name}", html.EscapeString(p.FirstName), 1)
+		entry = strings.Replace(entry, "{name}", playerNameDisplay, 1)
 		entry = strings.Replace(entry, "{points}", strconv.Itoa(p.Points), 1)
 		leaderboardText.WriteString(entry)
 	}

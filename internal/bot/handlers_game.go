@@ -107,10 +107,19 @@ func (b *Bot) handleGroupMessage(message *tgbotapi.Message, player *db.Player) {
 
 		// Tambahkan poin HANYA untuk Penebak
 		state.SessionScores[player.TelegramUserID] += points
-		// TANDA: Pemberi petunjuk tidak lagi mendapatkan poin
+		
+		go b.checkAndAwardAchievements(player.TelegramUserID, chatID, player.FirstName, timeTaken)
+
+		playerBadges, _ := b.db.GetPlayerBadges(player.TelegramUserID)
+		badgeDisplay := ""
+		if len(playerBadges) > 0 {
+			badgeDisplay = playerBadges[0].Emoji + " " // Ambil lencana pertama
+		}
+		winnerNameDisplay := badgeDisplay + html.EscapeString(player.FirstName)
+
 
 		responseText := b.localizer.Get(lang, "round_won_announcement")
-		responseText = strings.Replace(responseText, "{winner_name}", html.EscapeString(player.FirstName), 1)
+		responseText = strings.Replace(responseText, "{winner_name}", winnerNameDisplay, 1) // Gunakan nama yang sudah ada lencananya
 		responseText = strings.Replace(responseText, "{word}", strings.ToUpper(state.SecretWord), 1)
 		responseText = strings.Replace(responseText, "{points}", strconv.Itoa(points), 1)
 		b.sendMessage(chatID, responseText, true)
@@ -184,14 +193,21 @@ func (b *Bot) endGame(chatID int64, reason string) {
 		return state.SessionScores[players[i].TelegramUserID] > state.SessionScores[players[j].TelegramUserID]
 	})
 	for _, p := range players {
+		// TANDA: Logika lencana ditambahkan di sini
+		playerBadges, _ := b.db.GetPlayerBadges(p.TelegramUserID)
+		badgeDisplay := ""
+		if len(playerBadges) > 0 {
+			badgeDisplay = playerBadges[0].Emoji + " "
+		}
+		playerNameDisplay := badgeDisplay + html.EscapeString(p.FirstName)
+
 		entry := b.localizer.Get(lang, "end_of_round_scoreboard_entry")
-		entry = strings.Replace(entry, "{player_name}", html.EscapeString(p.FirstName), 1)
+		entry = strings.Replace(entry, "{player_name}", playerNameDisplay, 1)
 		entry = strings.Replace(entry, "{points}", strconv.Itoa(state.SessionScores[p.TelegramUserID]), 1)
 		scoreboard.WriteString(entry)
 	}
 	finalMsg += scoreboard.String()
 
-	// TANDA: Logika bonus pemenang dihapus. Hanya menampilkan pemenang.
 	var winner *db.Player
 	maxPoints := -1
 	for playerID, points := range state.SessionScores {
@@ -201,12 +217,21 @@ func (b *Bot) endGame(chatID int64, reason string) {
 		}
 	}
 	if winner != nil {
+		// TANDA: Logika lencana juga ditambahkan untuk pemenang utama
+		winnerBadges, _ := b.db.GetPlayerBadges(winner.TelegramUserID)
+		badgeDisplay := ""
+		if len(winnerBadges) > 0 {
+			badgeDisplay = winnerBadges[0].Emoji + " "
+		}
+		winnerNameDisplay := badgeDisplay + html.EscapeString(winner.FirstName)
+
 		winnerAnnounce := b.localizer.Get(lang, "final_winner_announcement")
-		winnerAnnounce = strings.Replace(winnerAnnounce, "{winner_name}", html.EscapeString(winner.FirstName), 1)
+		winnerAnnounce = strings.Replace(winnerAnnounce, "{winner_name}", winnerNameDisplay, 1)
 		finalMsg += winnerAnnounce
 	}
 
 	b.sendMessage(chatID, finalMsg, true)
+
 	b.mu.Lock()
 	delete(b.gameStates, chatID)
 	b.mu.Unlock()
@@ -266,11 +291,21 @@ func (b *Bot) startRound(chatID int64) {
 	state.WrongGuesses = make([]string, 0)
 
 	lang := "id"
+	
+	clueGiverBadges, _ := b.db.GetPlayerBadges(clueGiver.TelegramUserID)
+	badgeDisplay := ""
+	if len(clueGiverBadges) > 0 {
+		badgeDisplay = clueGiverBadges[0].Emoji + " " // Ambil lencana pertama
+	}
+	clueGiverNameDisplay := badgeDisplay + html.EscapeString(clueGiver.FirstName)
+	// TANDA: Akhir dari blok yang ditambahkan
+
 	announcement := b.localizer.Get(lang, "round_start_announcement")
 	announcement = strings.Replace(announcement, "{current_round}", strconv.Itoa(state.Round), 1)
 	announcement = strings.Replace(announcement, "{total_rounds}", strconv.Itoa(state.TotalRounds), 1)
-	announcement = strings.Replace(announcement, "{clue_giver_name}", html.EscapeString(clueGiver.FirstName), 1)
+	announcement = strings.Replace(announcement, "{clue_giver_name}", clueGiverNameDisplay, 1) // Gunakan nama yang sudah ada lencananya
 	b.sendMessage(chatID, announcement, true)
+
 
 	secretWord := game.WordList[rand.Intn(len(game.WordList))]
 	state.SecretWord = secretWord
@@ -310,8 +345,17 @@ func (b *Bot) handleEndOfRound(chatID int64) {
 		return state.SessionScores[players[i].TelegramUserID] > state.SessionScores[players[j].TelegramUserID]
 	})
 	for _, p := range players {
+		// TANDA: Logika untuk mengambil dan menampilkan lencana ditambahkan di sini
+		playerBadges, _ := b.db.GetPlayerBadges(p.TelegramUserID)
+		badgeDisplay := ""
+		if len(playerBadges) > 0 {
+			badgeDisplay = playerBadges[0].Emoji + " "
+		}
+		playerNameDisplay := badgeDisplay + html.EscapeString(p.FirstName)
+		// TANDA: Akhir dari blok yang ditambahkan
+
 		entry := b.localizer.Get("id", "end_of_round_scoreboard_entry")
-		entry = strings.Replace(entry, "{player_name}", html.EscapeString(p.FirstName), 1)
+		entry = strings.Replace(entry, "{player_name}", playerNameDisplay, 1)
 		entry = strings.Replace(entry, "{points}", strconv.Itoa(state.SessionScores[p.TelegramUserID]), 1)
 		scoreboard.WriteString(entry)
 	}

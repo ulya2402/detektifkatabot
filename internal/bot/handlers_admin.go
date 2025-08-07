@@ -1,9 +1,10 @@
 package bot
 
 import (
-	"fmt"
 	"log"
 	"time"
+	"strconv"
+	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -21,7 +22,11 @@ func (b *Bot) handleAdminCommand(message *tgbotapi.Message) {
 	}
 }
 
+// TANDA: Kode fungsi penuh untuk handleBroadcast yang sudah menggunakan localizer
+
 func (b *Bot) handleBroadcast(message *tgbotapi.Message, chatType string) {
+	// Untuk perintah admin, kita bisa tentukan bahasanya secara manual, misal "id"
+	lang := "id"
 	log.Printf("Broadcast initiated by admin for type: %s", chatType)
 
 	caption := message.CommandArguments()
@@ -32,18 +37,21 @@ func (b *Bot) handleBroadcast(message *tgbotapi.Message, chatType string) {
 	}
 
 	if caption == "" && photoFileID == "" {
-		b.sendMessage(message.Chat.ID, "Broadcast message cannot be empty.", false)
+		b.sendMessage(message.Chat.ID, b.localizer.Get(lang, "broadcast_cannot_be_empty"), false)
 		return
 	}
 
 	chatIDs, err := b.db.GetAllChatsByType(chatType)
 	if err != nil {
 		log.Printf("Failed to get chat IDs for broadcast: %v", err)
-		b.sendMessage(message.Chat.ID, "Failed to fetch chat list.", false)
+		b.sendMessage(message.Chat.ID, b.localizer.Get(lang, "broadcast_fetch_fail"), false)
 		return
 	}
 
-	b.sendMessage(message.Chat.ID, fmt.Sprintf("Starting broadcast to %d %s chats...", len(chatIDs), chatType), false)
+	startMsg := b.localizer.Get(lang, "broadcast_starting")
+	startMsg = strings.Replace(startMsg, "{count}", strconv.Itoa(len(chatIDs)), 1)
+	startMsg = strings.Replace(startMsg, "{type}", chatType, 1)
+	b.sendMessage(message.Chat.ID, startMsg, false)
 
 	successCount := 0
 	failCount := 0
@@ -68,11 +76,9 @@ func (b *Bot) handleBroadcast(message *tgbotapi.Message, chatType string) {
 		time.Sleep(1 * time.Second)
 	}
 
-	summary := fmt.Sprintf(
-		"Broadcast finished.\nSuccess: %d\nFailed: %d",
-		successCount,
-		failCount,
-	)
-	b.sendMessage(message.Chat.ID, summary, false)
+	summaryMsg := b.localizer.Get(lang, "broadcast_finished_summary")
+	summaryMsg = strings.Replace(summaryMsg, "{success}", strconv.Itoa(successCount), 1)
+	summaryMsg = strings.Replace(summaryMsg, "{fail}", strconv.Itoa(failCount), 1)
+	b.sendMessage(message.Chat.ID, summaryMsg, false)
 	log.Println("Broadcast finished.")
 }

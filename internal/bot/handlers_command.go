@@ -30,7 +30,7 @@ func (b *Bot) handleCommand(message *tgbotapi.Message, player *db.Player) {
 	case "leaderboard", "topglobal":
 		b.handleLeaderboardCommand(message)
 	case "profile":
-		b.handleProfileCommand(message, player)
+		b.handleProfileCommand(message)
 	case "toko", "market":
 		b.handleTokoCommand(message, player)
 	case "broadcast", "broadcastgroup": 
@@ -42,9 +42,40 @@ func (b *Bot) handleCommand(message *tgbotapi.Message, player *db.Player) {
 
 func (b *Bot) handleStartCommand(message *tgbotapi.Message) {
 	lang := b.getUserLang(message.From)
+	chatID := message.Chat.ID
+
+	// 1. Siapkan pesan teks dan tombol terlebih dahulu
 	welcomeText := b.localizer.Get(lang, "start_welcome")
 	personalizedText := strings.Replace(welcomeText, "{name}", html.EscapeString(message.From.FirstName), 1)
-	b.sendMessage(message.Chat.ID, personalizedText, true)
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(b.localizer.Get(lang, "help_button_how_to_play"), "help_how_to_play"),
+			tgbotapi.NewInlineKeyboardButtonData(b.localizer.Get(lang, "help_button_commands"), "help_commands"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🏆 Papan Peringkat", "profile_action_leaderboard"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("👤 Profil Saya", "profile_action_refresh"),
+		),
+	)
+
+	// 2. Cek apakah ada URL gambar di konfigurasi
+	if b.cfg.StartImageURL != "" {
+		// Jika ADA gambar, kirim sebagai foto dengan caption dan tombol
+		photoMsg := tgbotapi.NewPhoto(chatID, tgbotapi.FileURL(b.cfg.StartImageURL))
+		photoMsg.Caption = personalizedText
+		photoMsg.ParseMode = tgbotapi.ModeHTML
+		photoMsg.ReplyMarkup = &keyboard // Tambahkan tombol ke pesan foto
+		b.api.Send(photoMsg)
+	} else {
+		// Jika TIDAK ADA gambar, kirim sebagai pesan teks biasa (fallback)
+		msg := tgbotapi.NewMessage(chatID, personalizedText)
+		msg.ParseMode = tgbotapi.ModeHTML
+		msg.ReplyMarkup = keyboard
+		b.api.Send(msg)
+	}
 }
 
 func (b *Bot) handleStartGameCommand(message *tgbotapi.Message, player *db.Player) {
@@ -191,10 +222,18 @@ func (b *Bot) handleLeaderboardCommand(message *tgbotapi.Message) {
 		}
 
 		// TANDA: Logika untuk mengambil dan menampilkan lencana ditambahkan di sini
-		playerBadges, _ := b.db.GetPlayerBadges(p.TelegramUserID)
+		
 		badgeDisplay := ""
-		if len(playerBadges) > 0 {
-			badgeDisplay = playerBadges[0].Emoji + " "
+		if p.EquippedBadgeID != nil {
+			badge, err := b.db.GetBadgeByID(*p.EquippedBadgeID)
+			if err == nil {
+				badgeDisplay = badge.Emoji + " "
+			}
+		} else {
+			playerBadges, _ := b.db.GetPlayerBadges(p.TelegramUserID)
+			if len(playerBadges) > 0 {
+				badgeDisplay = playerBadges[0].Emoji + " "
+			}
 		}
 		playerNameDisplay := badgeDisplay + html.EscapeString(p.FirstName)
 		// TANDA: Akhir dari blok yang ditambahkan

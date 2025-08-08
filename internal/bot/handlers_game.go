@@ -108,15 +108,30 @@ func (b *Bot) handleGroupMessage(message *tgbotapi.Message, player *db.Player) {
 		// Tambahkan poin HANYA untuk Penebak
 		state.SessionScores[player.TelegramUserID] += points
 		
+		go b.db.IncrementPlayerStats(player.TelegramUserID, "words_guessed_count", 1)
+		// Catat bahwa si Pemberi Petunjuk berhasil memberikan petunjuk
+		go b.db.IncrementPlayerStats(state.ClueGiver.TelegramUserID, "clue_success_count", 1)
+		// Perbarui rekor tebakan tercepat si Penebak
+		go b.db.UpdatePlayerFastestGuess(player.TelegramUserID, timeTaken)
 		go b.checkAndAwardAchievements(player.TelegramUserID, chatID, player.FirstName, timeTaken)
 
-		playerBadges, _ := b.db.GetPlayerBadges(player.TelegramUserID)
+		fullPlayer, _ := b.db.GetPlayerByID(player.TelegramUserID)
+		
 		badgeDisplay := ""
-		if len(playerBadges) > 0 {
-			badgeDisplay = playerBadges[0].Emoji + " " // Ambil lencana pertama
+		if fullPlayer.EquippedBadgeID != nil {
+			// Prioritaskan lencana yang dipakai
+			badge, err := b.db.GetBadgeByID(*fullPlayer.EquippedBadgeID)
+			if err == nil {
+				badgeDisplay = badge.Emoji + " "
+			}
+		} else {
+			// Fallback ke lencana pertama jika tidak ada yang dipakai
+			playerBadges, _ := b.db.GetPlayerBadges(player.TelegramUserID)
+			if len(playerBadges) > 0 {
+				badgeDisplay = playerBadges[0].Emoji + " "
+			}
 		}
 		winnerNameDisplay := badgeDisplay + html.EscapeString(player.FirstName)
-
 
 		responseText := b.localizer.Get(lang, "round_won_announcement")
 		responseText = strings.Replace(responseText, "{winner_name}", winnerNameDisplay, 1) // Gunakan nama yang sudah ada lencananya
@@ -168,6 +183,10 @@ func (b *Bot) endGame(chatID int64, reason string) {
 		state.Timer.Stop()
 	}
 
+	for _, p := range state.Players {
+		go b.db.IncrementPlayerStats(p.TelegramUserID, "games_played", 1)
+	}
+
 	lang := "id"
 	finalMsg := reason
 
@@ -194,10 +213,19 @@ func (b *Bot) endGame(chatID int64, reason string) {
 	})
 	for _, p := range players {
 		// TANDA: Logika lencana ditambahkan di sini
-		playerBadges, _ := b.db.GetPlayerBadges(p.TelegramUserID)
+		
+		fullPlayer, _ := b.db.GetPlayerByID(p.TelegramUserID)
 		badgeDisplay := ""
-		if len(playerBadges) > 0 {
-			badgeDisplay = playerBadges[0].Emoji + " "
+		if fullPlayer.EquippedBadgeID != nil {
+			badge, err := b.db.GetBadgeByID(*fullPlayer.EquippedBadgeID)
+			if err == nil {
+				badgeDisplay = badge.Emoji + " "
+			}
+		} else {
+			playerBadges, _ := b.db.GetPlayerBadges(p.TelegramUserID)
+			if len(playerBadges) > 0 {
+				badgeDisplay = playerBadges[0].Emoji + " "
+			}
 		}
 		playerNameDisplay := badgeDisplay + html.EscapeString(p.FirstName)
 
@@ -217,24 +245,34 @@ func (b *Bot) endGame(chatID int64, reason string) {
 		}
 	}
 	if winner != nil {
-		// TANDA: Logika lencana juga ditambahkan untuk pemenang utama
-		winnerBadges, _ := b.db.GetPlayerBadges(winner.TelegramUserID)
+		// TANDA: Logika yang sama untuk pemenang utama
+		fullWinner, _ := b.db.GetPlayerByID(winner.TelegramUserID)
 		badgeDisplay := ""
-		if len(winnerBadges) > 0 {
-			badgeDisplay = winnerBadges[0].Emoji + " "
+		if fullWinner.EquippedBadgeID != nil {
+			badge, err := b.db.GetBadgeByID(*fullWinner.EquippedBadgeID)
+			if err == nil {
+				badgeDisplay = badge.Emoji + " "
+			}
+		} else {
+			winnerBadges, _ := b.db.GetPlayerBadges(winner.TelegramUserID)
+			if len(winnerBadges) > 0 {
+				badgeDisplay = winnerBadges[0].Emoji + " "
+			}
 		}
 		winnerNameDisplay := badgeDisplay + html.EscapeString(winner.FirstName)
-
+	
 		winnerAnnounce := b.localizer.Get(lang, "final_winner_announcement")
 		winnerAnnounce = strings.Replace(winnerAnnounce, "{winner_name}", winnerNameDisplay, 1)
 		finalMsg += winnerAnnounce
 	}
+	
 
 	b.sendMessage(chatID, finalMsg, true)
 
 	b.mu.Lock()
 	delete(b.gameStates, chatID)
 	b.mu.Unlock()
+
 }
 
 
@@ -286,16 +324,25 @@ func (b *Bot) startRound(chatID int64) {
 	state.Round++
 	state.CurrentTurnIndex = (state.Round - 1) % len(state.TurnOrder)
 	clueGiver := state.TurnOrder[state.CurrentTurnIndex]
+	go b.db.IncrementPlayerStats(clueGiver.TelegramUserID, "clue_given_count", 1)
 	state.ClueGiver = clueGiver
 	state.Status = game.StatusWaitingForClue
 	state.WrongGuesses = make([]string, 0)
 
 	lang := "id"
 	
-	clueGiverBadges, _ := b.db.GetPlayerBadges(clueGiver.TelegramUserID)
+	fullClueGiver, _ := b.db.GetPlayerByID(clueGiver.TelegramUserID)
 	badgeDisplay := ""
-	if len(clueGiverBadges) > 0 {
-		badgeDisplay = clueGiverBadges[0].Emoji + " " // Ambil lencana pertama
+	if fullClueGiver.EquippedBadgeID != nil {
+    badge, err := b.db.GetBadgeByID(*fullClueGiver.EquippedBadgeID)
+    if err == nil {
+        badgeDisplay = badge.Emoji + " "
+    }
+	} else {
+    clueGiverBadges, _ := b.db.GetPlayerBadges(clueGiver.TelegramUserID)
+    if len(clueGiverBadges) > 0 {
+        badgeDisplay = clueGiverBadges[0].Emoji + " "
+    }
 	}
 	clueGiverNameDisplay := badgeDisplay + html.EscapeString(clueGiver.FirstName)
 	// TANDA: Akhir dari blok yang ditambahkan
@@ -346,10 +393,19 @@ func (b *Bot) handleEndOfRound(chatID int64) {
 	})
 	for _, p := range players {
 		// TANDA: Logika untuk mengambil dan menampilkan lencana ditambahkan di sini
-		playerBadges, _ := b.db.GetPlayerBadges(p.TelegramUserID)
+		
+		fullPlayer, _ := b.db.GetPlayerByID(p.TelegramUserID)
 		badgeDisplay := ""
-		if len(playerBadges) > 0 {
-			badgeDisplay = playerBadges[0].Emoji + " "
+		if fullPlayer.EquippedBadgeID != nil {
+			badge, err := b.db.GetBadgeByID(*fullPlayer.EquippedBadgeID)
+			if err == nil {
+				badgeDisplay = badge.Emoji + " "
+			}
+		} else {
+			playerBadges, _ := b.db.GetPlayerBadges(p.TelegramUserID)
+			if len(playerBadges) > 0 {
+				badgeDisplay = playerBadges[0].Emoji + " "
+			}
 		}
 		playerNameDisplay := badgeDisplay + html.EscapeString(p.FirstName)
 		// TANDA: Akhir dari blok yang ditambahkan

@@ -13,35 +13,97 @@ import (
 )
 
 // handleProfileCommand dipanggil ketika pemain menggunakan perintah /profile
-func (b *Bot) handleProfileCommand(message *tgbotapi.Message, player *db.Player) {
+func (b *Bot) handleProfileCommand(message *tgbotapi.Message) {
 	lang := b.getUserLang(message.From)
-	badges, err := b.db.GetPlayerBadges(player.TelegramUserID)
+
+	// Ambil data pemain yang sudah lengkap dari database
+	player, err := b.db.GetPlayerByID(message.From.ID)
 	if err != nil {
-		log.Printf("Failed to get player badges for %d: %v", player.TelegramUserID, err)
+		log.Printf("Failed to get full player data for %d: %v", message.From.ID, err)
 		b.sendMessage(message.Chat.ID, b.localizer.Get(lang, "profile_load_error"), false)
 		return
 	}
 
-	var badgesDisplay string
-	if len(badges) > 0 {
-		var badgeEmojis []string
-		for _, badge := range badges {
-			badgeEmojis = append(badgeEmojis, badge.Emoji)
+	// 1. Siapkan Tampilan Lencana Utama
+	var mainBadgeDisplay string
+	if player.EquippedBadgeID != nil {
+		badge, err := b.db.GetBadgeByID(*player.EquippedBadgeID)
+		if err == nil {
+			mainBadgeDisplay = badge.Emoji + " "
 		}
-		badgesDisplay = strings.Join(badgeEmojis, " ")
-	} else {
-		badgesDisplay = b.localizer.Get(lang, "profile_no_badges")
 	}
 
+	// 2. Hitung Win Rate
+	winRate := 0.0
+	if player.GamesPlayed > 0 {
+		winRate = (float64(player.GamesWon) / float64(player.GamesPlayed)) * 100
+	}
+
+	// 3. Siapkan Tampilan Statistik Peran (Clue Giver Success Rate)
+	clueSuccessRate := 0.0
+	if player.ClueGivenCount > 0 {
+		clueSuccessRate = (float64(player.ClueSuccessCount) / float64(player.ClueGivenCount)) * 100
+	}
+	
+	// 4. Siapkan Tampilan Tebakan Tercepat
+	fastestGuessDisplay := "N/A"
+	if player.FastestGuess != -1 {
+		fastestGuessDisplay = fmt.Sprintf("%.2f detik", player.FastestGuess)
+	}
+
+	// 5. Ambil semua lencana untuk ditampilkan di koleksi
+	allBadges, _ := b.db.GetPlayerBadges(player.TelegramUserID)
+	var allBadgesDisplay string
+	if len(allBadges) > 0 {
+		var badgeEmojis []string
+		for _, badge := range allBadges {
+			badgeEmojis = append(badgeEmojis, badge.Emoji)
+		}
+		allBadgesDisplay = strings.Join(badgeEmojis, " ")
+	} else {
+		allBadgesDisplay = b.localizer.Get(lang, "profile_no_badges")
+	}
+
+	// 6. Gabungkan semua menjadi satu pesan profil yang lengkap
 	profileText := fmt.Sprintf(
-		"%s\n%s\n%s\n%s",
-		b.localizer.Get(lang, "profile_title"),
-		strings.Replace(b.localizer.Get(lang, "profile_name"), "{name}", html.EscapeString(player.FirstName), 1),
-		strings.Replace(b.localizer.Get(lang, "profile_points"), "{points}", strconv.Itoa(player.Points), 1),
-		strings.Replace(b.localizer.Get(lang, "profile_badges"), "{badges_display}", badgesDisplay, 1),
+		"--- 👤 PROFIL PEMAIN ---\n"+
+		"<b>Nama:</b> %s%s\n"+
+		"<b>Poin:</b> %d\n\n"+
+		"--- 📊 STATISTIK ---\n"+
+		"• Main: %d | Menang: %d (%.0f%% Win Rate)\n"+
+		"• Total Tebakan: %d kata\n"+
+		"• Tebakan Tercepat: %s\n"+
+		"• Sukses Beri Petunjuk: %.0f%%\n\n"+
+		"--- 🎖️ KOLEKSI LENCANA ---\n"+
+		"%s",
+		mainBadgeDisplay,
+		html.EscapeString(player.FirstName),
+		player.Points,
+		player.GamesPlayed,
+		player.GamesWon,
+		winRate,
+		player.WordsGuessedCount,
+		fastestGuessDisplay,
+		clueSuccessRate,
+		allBadgesDisplay,
 	)
 
-	b.sendMessage(message.Chat.ID, profileText, true)
+	// 7. Buat Tombol Interaktif
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			// Callback data akan berisi prefix "profile_action_"
+			tgbotapi.NewInlineKeyboardButtonData("🎽 Pakai Lencana", "profile_action_equip"),
+			tgbotapi.NewInlineKeyboardButtonData("🏆 Papan Peringkat", "profile_action_leaderboard"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🔄 Segarkan", "profile_action_refresh"),
+		),
+	)
+
+	msg := tgbotapi.NewMessage(message.Chat.ID, profileText)
+	msg.ParseMode = tgbotapi.ModeHTML
+	msg.ReplyMarkup = keyboard
+	b.api.Send(msg)
 }
 
 func (b *Bot) handleTokoCommand(message *tgbotapi.Message, player *db.Player) {

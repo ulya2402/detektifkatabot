@@ -14,6 +14,7 @@ type Config struct {
 	SupabaseKey      string
 	MustJoinChannel  string 
 	SuperAdminID     int64
+	StartImageURL    string
 }
 
 type User struct {
@@ -39,6 +40,7 @@ func Load() *Config {
 		SupabaseKey:      getEnv("SUPABASE_KEY", true),
 		MustJoinChannel:  getEnv("MUST_JOIN_CHANNEL", false), 
 		SuperAdminID:     adminID,
+		StartImageURL:    getEnv("START_IMAGE_URL", false),
 	}
 }
 

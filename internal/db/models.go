@@ -12,6 +12,14 @@ type Player struct {
 	Username       string    `json:"username,omitempty"`
 	Points         int       `json:"points,omitempty"`
 	CreatedAt      time.Time `json:"created_at,omitempty"`
+
+	GamesPlayed        int       `json:"games_played"`
+	GamesWon           int       `json:"games_won"`
+	FastestGuess       float64   `json:"fastest_guess"`
+	ClueGivenCount     int       `json:"clue_given_count"`
+	ClueSuccessCount   int       `json:"clue_success_count"`
+	WordsGuessedCount  int       `json:"words_guessed_count"`
+	EquippedBadgeID    *int      `json:"equipped_badge_id"`
 }
 
 type Badge struct {

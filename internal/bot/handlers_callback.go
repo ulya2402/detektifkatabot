@@ -19,8 +19,25 @@ func (b *Bot) handleCallbackQuery(query *tgbotapi.CallbackQuery) {
 	user := &config.User{ID: query.From.ID, FirstName: query.From.FirstName, Username: query.From.UserName}
 	player, _ := b.db.GetOrCreatePlayer(user)
 
-	messageID := query.Message.MessageID
 	data := query.Data
+
+	if strings.HasPrefix(data, "profile_action_") {
+		b.handleProfileActionCallback(query)
+		return
+	}
+
+	if strings.HasPrefix(data, "lencana_equip_") {
+		badgeID, _ := strconv.Atoi(strings.TrimPrefix(data, "lencana_equip_"))
+		err := b.db.SetEquippedBadge(query.From.ID, badgeID)
+		if err != nil {
+			b.answerCallback(query.ID, "Gagal memakai lencana.", true)
+			return
+		}
+		b.answerCallback(query.ID, "Lencana berhasil dipakai!", false)
+		// Setelah berhasil, segarkan tampilan profil
+		b.refreshProfileView(query, query.Message.MessageID)
+		return
+	}
 
 	if strings.HasPrefix(query.Data, "shop_") {
 		b.handleShopCallback(query, player)
@@ -53,6 +70,7 @@ func (b *Bot) handleCallbackQuery(query *tgbotapi.CallbackQuery) {
 	if strings.HasPrefix(data, "help_") {
 		var text string
 		var keyboard tgbotapi.InlineKeyboardMarkup
+		messageID := query.Message.MessageID
 
 		switch data {
 		case "help_how_to_play":
@@ -69,14 +87,13 @@ func (b *Bot) handleCallbackQuery(query *tgbotapi.CallbackQuery) {
 			keyboard = b.createHelpKeyboard(lang)
 		}
 
-		// Edit pesan yang ada untuk menampilkan konten baru
 		editMsg := tgbotapi.NewEditMessageText(chatID, messageID, text)
 		editMsg.ParseMode = tgbotapi.ModeHTML
 		editMsg.ReplyMarkup = &keyboard
 		b.api.Request(editMsg)
 
-		// Jawab callback agar tombol tidak loading terus
 		b.answerCallback(query.ID, "", false)
+		return 
 	}
 
 }
